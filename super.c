@@ -1,0 +1,167 @@
+#include <linux/kernel.h>
+#include <linux/bitops.h>
+#include <linux/blkdev.h>
+#include <linux/blk-mq.h>
+#include <linux/errno.h>
+#include <linux/fs.h>
+#include <linux/mpage.h>
+#include <linux/genhd.h>
+#include <linux/mm.h>
+#include <linux/mutex.h>
+#include <linux/slab.h>
+#include <linux/types.h>
+#include <linux/buffer_head.h>
+
+#include "testfs.h"
+
+/*
+ * get the block index which contains this inode, and the offset
+ * within that block
+ */
+int testfs_get_block_and_offset(struct super_block *sb, ino_t ino,
+				unsigned long *blkid, unsigned long *offset)
+{
+	struct testfs_sb_info *sbi = (struct testfs_sb_info *)sb->s_fs_info;
+	int inode_per_block;
+
+	/*
+	 * since inode bitmap only use one block, so the max inode index should
+	 * less that it.
+	 */
+	if (ino >= TEST_FS_BLOCK_SIZE) {
+		pr_err("ino (%ld) is too large, expect < %d\n",
+				ino, TEST_FS_BLOCK_SIZE);
+		return -EINVAL;
+	}
+
+	/* inode count per block */
+	inode_per_block = sbi->s_block_size / sbi->s_inode_size;
+
+	/* get the block index */
+	*blkid = ino / inode_per_block;
+
+	/* get offset within block */
+	*offset = (ino % inode_per_block) * sbi->s_inode_size;
+
+	return 0;
+}
+
+static void testfs_put_super(struct super_block *sb)
+{
+	struct testfs_sb_info *sbi = (struct testfs_sb_info *)sb->s_fs_info;
+
+	pr_err("%s,%d\n", __func__, __LINE__);
+
+	brelse(sbi->s_sb_bh);
+	kfree(sb->s_fs_info);
+	sb->s_fs_info = NULL;
+}
+
+struct super_operations testfs_sops = {
+	.free_inode = testfs_free_inode,
+	.alloc_inode = testfs_alloc_inode,
+	.put_super = testfs_put_super,
+};
+
+int testfs_fill_super(struct super_block *sb, void *data, int silent)
+{
+	int ret, block_size, total_blknr;
+	struct testfs_sb_info *sbi;
+	struct inode *root;
+	struct buffer_head * bh;
+	struct test_super_block *tsb;
+
+	pr_err("%s,%d\n", __func__, __LINE__);
+
+	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
+	if (!sbi)
+		return -ENOMEM;
+
+	/* set block size for superblock */
+	block_size = sb_min_blocksize(sb, TEST_FS_BLOCK_SIZE);
+	if (!block_size) {
+		pr_err("failed to set block size (%d) for super block\n",
+				TEST_FS_BLOCK_SIZE);
+		goto free_sbi;
+	}
+	sbi->s_block_size = block_size;
+
+	/* read super block from disk, the offset is 0 */
+	bh = sb_bread_unmovable(sb, TEST_FS_BLKID_SB);
+	if (!bh) {
+		pr_err("failed to read superblock from disk\n");
+		goto free_sbi;
+	}
+	sbi->s_sb_bh = bh;
+	tsb = (struct test_super_block *)bh->b_data;
+	sbi->s_tsb = tsb;
+
+	/* convert them to struct super_block */
+	sb->s_magic = le16_to_cpu(tsb->s_magic);
+	if (sb->s_magic != TEST_FS_MAGIC) {
+		pr_err("Wrong magic number %lx != %x\n",
+				sb->s_magic, TEST_FS_MAGIC);
+		goto free_bh;
+	}
+
+	/* verify block size */
+	block_size = le32_to_cpu(tsb->s_block_size);
+	if (block_size != sbi->s_block_size) {
+		pr_err("wrong block size %d, expect %d\n", block_size,
+				sbi->s_block_size);
+		goto free_bh;
+	}
+
+	/* the maximum file size */
+	sb->s_maxbytes = TEST_FS_N_BLOCKS * block_size;
+
+	ret = generic_check_addressable(sb->s_blocksize_bits,
+							tsb->s_total_blknr);
+	if (ret) {
+		pr_err("filesystem is too large to mount\n");
+		goto free_bh;
+	}
+
+	/* verify filesystem size and block device size */
+	total_blknr = sb->s_bdev->bd_inode->i_size >> sb->s_blocksize_bits;
+	if (total_blknr < tsb->s_total_blknr) {
+		pr_err("filesystem size (%d) > disk size(%d), please re-format\n",
+			tsb->s_total_blknr, total_blknr);
+		goto free_bh;
+	}
+
+	ret = -ENOMEM;
+
+	sb->s_magic = TEST_FS_MAGIC;
+	sb->s_fs_info = sbi;
+	sb->s_op = &testfs_sops;
+
+	/* copy uuid */
+	memcpy(&sb->s_uuid, tsb->s_uuid, sizeof(sb->s_uuid));
+
+	root = testfs_iget(sb, TESTFS_ROOT_INO);
+	if (IS_ERR(root)) {
+		ret = PTR_ERR(root);
+		goto free_sbi;
+	}
+	if (!S_ISDIR(root->i_mode) || !root->i_blocks || !root->i_size) {
+		pr_err("read root inode failed\n");
+		goto free_inode;
+	}
+
+	sb->s_root = d_make_root(root);
+	if (!sb->s_root) {
+		pr_err("d make root failed\n");
+		goto free_inode;
+	}
+
+	return 0;
+
+free_inode:
+	iput(root);
+free_bh:
+	brelse(sbi->s_sb_bh);
+free_sbi:
+	kfree(sbi);
+	return ret;
+}
