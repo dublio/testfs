@@ -1,29 +1,3 @@
-#include <linux/bitops.h>
-#include <linux/blkdev.h>
-#include <linux/cpu.h>
-#include <linux/delay.h>
-#include <linux/errno.h>
-#include <linux/fs.h>
-#include <linux/genhd.h>
-#include <linux/hdreg.h>
-#include <linux/idr.h>
-#include <linux/init.h>
-#include <linux/interrupt.h>
-#include <linux/io.h>
-#include <linux/kdev_t.h>
-#include <linux/kernel.h>
-#include <linux/mm.h>
-#include <linux/module.h>
-#include <linux/moduleparam.h>
-#include <linux/mutex.h>
-#include <linux/poison.h>
-#include <linux/ptrace.h>
-#include <linux/sched.h>
-#include <linux/slab.h>
-#include <linux/timer.h>
-#include <linux/types.h>
-#include <asm/unaligned.h>
-#include <linux/proc_fs.h>
 #include "testfs.h"
 
 static struct dentry *testfs_mount(struct file_system_type *fs_type, int flags,

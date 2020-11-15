@@ -1,17 +1,3 @@
-#include <linux/kernel.h>
-#include <linux/bitops.h>
-#include <linux/blkdev.h>
-#include <linux/blk-mq.h>
-#include <linux/errno.h>
-#include <linux/fs.h>
-#include <linux/mpage.h>
-#include <linux/genhd.h>
-#include <linux/mm.h>
-#include <linux/mutex.h>
-#include <linux/slab.h>
-#include <linux/types.h>
-#include <linux/buffer_head.h>
-
 #include "testfs.h"
 
 long testfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)

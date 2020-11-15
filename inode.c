@@ -1,22 +1,3 @@
-#include <linux/kernel.h>
-#include <linux/bitops.h>
-#include <linux/blkdev.h>
-#include <linux/blk-mq.h>
-#include <linux/errno.h>
-#include <linux/fs.h>
-#include <linux/mpage.h>
-#include <linux/genhd.h>
-#include <linux/mm.h>
-#include <linux/mutex.h>
-#include <linux/slab.h>
-#include <linux/types.h>
-#include <linux/buffer_head.h>
-#include <linux/fiemap.h>
-#include <linux/iomap.h>
-#include <linux/namei.h>
-#include <linux/uio.h>
-#include <linux/fiemap.h>
-
 #include "testfs.h"
 
 static struct kmem_cache *testfs_icachep;
@@ -71,35 +52,159 @@ void testfs_free_inode(struct inode *inode)
 	kmem_cache_free(testfs_icachep, ti);
 }
 
-static int testfs_get_blocks(struct inode *inode,
-                           sector_t iblock, unsigned long maxblocks,
-                           u32 *bno, bool *new, bool *boundary,
-                           int create)
+/*
+ * testfs_get_disk_inode - get inode from the disk's inode table
+ *
+ * @sb:  the super block
+ * @ino: inode index
+ * @bh:  buffer_head of the block that contains this inode
+ *
+ */
+struct testfs_disk_inode *testfs_get_disk_inode(struct super_block *sb,
+				ino_t ino, struct buffer_head **bh)
 {
-	return 0;
+	unsigned long blkid, offset;
+	struct buffer_head *tmp;
+
+	/*
+	 * get the block index which contains this inode, and the offset
+	 * within that block
+	 */
+	if (testfs_get_block_and_offset(sb, ino - 1, &blkid, &offset))
+		return ERR_PTR(-EINVAL);
+
+	tmp = sb_bread(sb, blkid);
+	if (!tmp)
+		return ERR_PTR(-EIO);
+
+	*bh = tmp;
+
+	return (struct testfs_disk_inode *)(tmp->b_data + offset);
 }
 
-static int testfs_get_block(struct inode *inode, sector_t iblock,
+static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
+{
+	struct buffer_head *bh;
+	unsigned long *bitmap, index = 0;
+	bool got = false;
+
+	/* read data bitmap */
+	bh = sb_bread_unmovable(sb, TEST_FS_BLKID_DBITMAP);
+	if (!bh) {
+		pr_err("failed to read data bitmap\n");
+		return -EIO;
+	}
+
+	bitmap = (unsigned long *)bh->b_data;
+
+	while (1) {
+		/* find the first available bit */
+		index = find_first_zero_bit_le(bitmap, TEST_FS_BLOCK_SIZE);
+
+		/* if return 0, means this bit has been used, retry other bit */
+		if (!test_and_set_bit_le(index, bitmap)) {
+			*blkid = (u32)index;
+			got = true;
+			break;
+		}
+	}
+
+	if (!got) {
+		pr_err("not found available data block\n");
+		goto free_bh;
+	}
+
+
+	/* update data bitmap */
+	mark_buffer_dirty(bh);
+	sync_dirty_buffer(bh);
+	brelse(bh);
+
+	return 0;
+
+free_bh:
+	brelse(bh);
+	return -ENOSPC;
+}
+
+/*
+ * testfs_get_blocks - alloc/read block from disk for this inode
+ * @inode:	the inode interested
+ * @iblock:	offset within @inode
+ * @bno:	block index on disk
+ * @new:	new allocated ? maybe it has been in disk
+ * @boundary:	??
+ * @create:	create new block if no
+ *
+ */
+static int _testfs_get_block(struct inode *inode, sector_t iblock, u32 *bno,
+			bool *new, int create)
+{
+	struct buffer_head *disk_inode_bh;
+	struct super_block *sb = inode->i_sb;
+	struct testfs_disk_inode *tdi;
+	unsigned old_blkid;
+	int ret = -ENOSPC;
+
+	/*
+	 * how many blocked has been allocated ?, to simplify the code logic
+	 * we only allocate maximun 16 blocks for a file.
+	 */
+	if (inode->i_size >= TEST_FS_FILE_MAX_BYTE) {
+		pr_err("file size limitation\n");
+		return -ENOSPC;
+	}
+
+	/* read inode info from disk for this ino */
+	tdi = testfs_get_disk_inode(sb, inode->i_ino, &disk_inode_bh);
+	if (IS_ERR(tdi))
+		return -EIO;
+
+	/* check allocated ? */
+	old_blkid = le32_to_cpu(tdi->i_block[iblock]);
+	if (old_blkid > 0) {
+		*bno = old_blkid;
+		ret = 0;
+		goto out;
+	}
+
+	if (create == 0)
+		goto out;
+
+	/* alloc new data block */
+	ret = testfs_get_new_block(sb, bno);
+	if (ret)
+		goto out;
+
+	*new = true;
+
+	/* update inode dentry */
+	tdi->i_blocks = cpu_to_le32(le32_to_cpu(tdi->i_blocks) + 1);
+	tdi->i_block[iblock] = cpu_to_le32(*bno);
+	mark_buffer_dirty(disk_inode_bh);
+	sync_dirty_buffer(disk_inode_bh);
+
+out:
+	brelse(disk_inode_bh);
+	return ret;
+}
+
+int testfs_get_block(struct inode *inode, sector_t iblock,
                 struct buffer_head *bh_result, int create)
 {
-        unsigned max_blocks = bh_result->b_size >> inode->i_blkbits;
-        bool new = false, boundary = false;
+        bool new = false;
         u32 bno;
         int ret;
 
-        ret = testfs_get_blocks(inode, iblock, max_blocks, &bno, &new, &boundary,
-                        create);
-        if (ret <= 0)
+        ret = _testfs_get_block(inode, iblock, &bno, &new, create);
+        if (ret)
                 return ret;
 
         map_bh(bh_result, inode->i_sb, bno);
-        bh_result->b_size = (ret << inode->i_blkbits);
+        bh_result->b_size = (1 << inode->i_blkbits);
         if (new)
                 set_buffer_new(bh_result);
-        if (boundary)
-                set_buffer_boundary(bh_result);
         return 0;
-
 }
 
 static int testfs_readpage(struct file *file, struct page *page)
@@ -190,36 +295,6 @@ const struct address_space_operations testfs_aops = {
         .direct_IO              = testfs_direct_IO,
 };
 
-/*
- * testfs_get_disk_inode - get inode from the disk's inode table
- *
- * @sb:  the super block
- * @ino: inode index
- * @bh:  buffer_head of the block that contains this inode
- *
- */
-struct testfs_disk_inode *testfs_get_disk_inode(struct super_block *sb,
-				ino_t ino, struct buffer_head **bh)
-{
-	unsigned long blkid, offset;
-	struct buffer_head *tmp;
-
-	/*
-	 * get the block index which contains this inode, and the offset
-	 * within that block
-	 */
-	if (testfs_get_block_and_offset(sb, ino - 1, &blkid, &offset))
-		return ERR_PTR(-EINVAL);
-
-	tmp = sb_bread(sb, blkid);
-	if (!tmp)
-		return ERR_PTR(-EIO);
-
-	*bh = tmp;
-
-	return (struct testfs_disk_inode *)(tmp->b_data + offset);
-}
-
 struct inode *testfs_iget(struct super_block *sb, int ino)
 {
 	struct inode *inode;
@@ -282,4 +357,65 @@ out:
 	brelse(bh);
 	iget_failed(inode);
 	return ERR_PTR(err);
+}
+
+struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
+				const struct qstr *qstr)
+{
+	struct inode *inode;
+	struct super_block *sb;
+	struct testfs_sb_info *sbi;
+	struct buffer_head *bh;
+	unsigned long *bitmap;
+	ino_t ino;
+
+        sb = dir->i_sb;
+	sbi = sb->s_fs_info;
+        inode = new_inode(sb);
+        if (!inode)
+                return ERR_PTR(-ENOMEM);
+
+	/* read inode bitmap from disk */
+	bh = sb_bread_unmovable(sb, TEST_FS_BLKID_IBITMAP);
+	if (!bh) {
+		pr_err("failed to read inode bitmap\n");
+		goto free_inode;
+	}
+
+	bitmap = (unsigned long *)bh->b_data;
+
+	while (1) {
+		/* find the first available bit */
+		ino = find_first_zero_bit_le(bitmap, TEST_FS_BLOCK_SIZE);
+
+		/* if return 0, means this bit has been used, retry other bit */
+		if (!test_and_set_bit_le(ino, bitmap))
+			break;
+	}
+
+	/* write inode bitmap back to disk */
+	mark_buffer_dirty(bh);
+	if (sb->s_flags & SB_SYNCHRONOUS)
+		sync_dirty_buffer(bh);
+	brelse(bh);
+
+	inode_init_owner(inode, dir, mode);
+	inode->i_ino = ino;
+	inode->i_blocks = 0;
+	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
+	inode->i_op = &testfs_file_iops;
+	inode->i_fop = &testfs_file_fops;
+	inode->i_mapping->a_ops = &testfs_aops;
+
+	if (insert_inode_locked(inode) < 0) {
+		pr_err("failed to insert inode: %ld\n", inode->i_ino);
+		goto free_inode;
+	}
+
+	return inode;
+
+free_inode:
+	make_bad_inode(inode);
+	iput(inode);
+	return ERR_PTR(-EIO);
 }

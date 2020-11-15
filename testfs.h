@@ -1,5 +1,37 @@
 #ifndef __TESTFS_H__
 #define __TESTFS_H__
+#include <linux/kernel.h>
+#include <linux/bitops.h>
+#include <linux/blkdev.h>
+#include <linux/blk-mq.h>
+#include <linux/errno.h>
+#include <linux/fs.h>
+#include <linux/mpage.h>
+#include <linux/genhd.h>
+#include <linux/mm.h>
+#include <linux/mutex.h>
+#include <linux/slab.h>
+#include <linux/types.h>
+#include <linux/buffer_head.h>
+#include <linux/fiemap.h>
+#include <linux/iomap.h>
+#include <linux/namei.h>
+#include <linux/uio.h>
+#include <linux/fiemap.h>
+#include <linux/delay.h>
+#include <linux/errno.h>
+#include <linux/kernel.h>
+#include <linux/mm.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/mutex.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/timer.h>
+#include <linux/types.h>
+#include <asm/unaligned.h>
+#include <linux/proc_fs.h>
+#include <linux/iversion.h>
 
 /**************************************************************
  * inode
@@ -21,15 +53,15 @@ struct testfs_disk_inode {
 	__le16 i_links_count;	/* Links count */
 	__le32 i_uid;		/* Low 16 bits of User Uid */
 	__le32 i_gid;		/* Low 16 bits of Group Id */
-/*16*/	__le32 i_size;		/* Size in bytes */
+/*16 */	__le32 i_size;		/* Size in bytes */
 	__le32 i_atime;		/* Access time */
 	__le32 i_ctime;		/* Creation time */
 	__le32 i_mtime;		/* Modification time */
-/*32*/	__le32 i_generation;	/* ??? */
+/*32 */	__le32 i_generation;	/* ??? */
 	__le32 i_flags;		/* File flags */
-	__le32 i_blocks;	/* Blocks count */
-/*44*/	__le32 i_block[TEST_FS_N_BLOCKS];/* Pointers to blocks */
-	__u8   reserved[88];
+/*40 */	__le32 i_blocks;	/* Blocks count */
+/*104*/	__le32 i_block[TEST_FS_N_BLOCKS];/* Pointers to blocks */
+	__u8   reserved[24];
 };
 
 #define TESTFS_I(inode) container_of(inode, struct testfs_inode, vfs_inode)
@@ -47,6 +79,8 @@ struct inode *testfs_alloc_inode(struct super_block *sb);
 #define TEST_FS_BLKID_IBITMAP	1	/* inode bitmap */
 #define TEST_FS_BLKID_DBITMAP	2	/* data block bitmap */
 #define TEST_FS_BLKID_ITABLE	3	/* inode table */
+
+#define TEST_FS_FILE_MAX_BYTE	(TEST_FS_BLOCK_SIZE * TEST_FS_N_BLOCKS)
 
 struct test_super_block {
 	__le32 s_version;
@@ -81,6 +115,10 @@ struct testfs_sb_info {
 int testfs_fill_super(struct super_block *sb, void *data, int silent);
 int testfs_get_block_and_offset(struct super_block *sb, ino_t ino,
 				unsigned long *blkid, unsigned long *offset);
+int testfs_get_block(struct inode *inode, sector_t iblock,
+                struct buffer_head *bh_result, int create);
+struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
+				const struct qstr *qstr);
 int testfs_inode_cache_init(void);
 void testfs_inode_cache_deinit(void);
 void testfs_free_inode(struct inode *inode);
