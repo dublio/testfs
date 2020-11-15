@@ -8,4 +8,4 @@ PWD := $(shell pwd)
 all:
 	make -C $(KERNEL_DIR) M=$(PWD) modules
 clean:
-	rm *.o *.ko *.mod.c *.symvers *.order
+	rm *.o *.ko *.mod *.mod.c *.symvers *.order
