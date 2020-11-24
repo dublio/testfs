@@ -7,5 +7,6 @@ PWD := $(shell pwd)
 
 all:
 	make -C $(KERNEL_DIR) M=$(PWD) modules
+	gcc -o mktestfs mktestfs.c -luuid
 clean:
 	rm *.o *.ko *.mod *.mod.c *.symvers *.order
