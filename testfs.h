@@ -71,7 +71,7 @@ struct testfs_disk_inode {
  * super block
  **************************************************************/
 struct inode *testfs_alloc_inode(struct super_block *sb);
-#define TEST_FS_MAGIC		0x11223344
+#define TEST_FS_MAGIC		0x1234
 #define TEST_FS_BLOCK_SIZE	4096
 
 /* block index */
