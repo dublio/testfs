@@ -1,15 +1,5 @@
 #include "testfs.h"
 
-const struct file_operations testfs_dir_fops = {
-        .llseek         = generic_file_llseek,
-        .read           = generic_read_dir,
-        .unlocked_ioctl = testfs_ioctl,
-#ifdef CONFIG_COMPAT
-        .compat_ioctl   = testfs_compat_ioctl,
-#endif
-	.fsync		= testfs_fsync,
-};
-
 static struct page *testfs_get_page(struct inode *inode, unsigned long n)
 {
         struct address_space *mapping = inode->i_mapping;
@@ -219,4 +209,65 @@ const struct inode_operations testfs_dir_iops = {
 	.lookup		= testfs_lookup,
 	.create		= testfs_create,
 	.getattr        = testfs_getattr,
+};
+
+static int testfs_readdir(struct file *file, struct dir_context *ctx)
+{
+	loff_t pos = ctx->pos;
+	struct inode *inode = file_inode(file);
+	struct testfs_dir_entry *tde;
+	unsigned int offset = pos & ~PAGE_MASK;
+	unsigned long i = pos >> PAGE_SHIFT;
+	unsigned long total_pages = dir_pages(inode);
+	struct page *page;
+	char *s, *e;
+#if 0
+	/* need support revalidate */
+	bool need_revalidate = !inode_eq_iversion(inode, file->f_version);
+#endif
+
+	if (pos > inode->i_size - TEST_FS_DENTRY_SIZE)
+		return 0;
+
+	for (; i < total_pages; i++, offset = 0) {
+		page = testfs_get_page(inode, i);
+		if (IS_ERR(page)) {
+			pr_err("bad page in inode %lu, skip\n", inode->i_ino);
+			ctx->pos += PAGE_SIZE - offset;
+			return PTR_ERR(page);
+		}
+
+		s = (char *)page_address(page);
+		e = s + PAGE_SIZE;
+		s += offset;
+
+		for (;s < e; s += TEST_FS_DENTRY_SIZE) {
+			tde = (struct testfs_dir_entry *)s;
+			if (tde->name_len == 0)
+				continue;
+			/* copy valid dentry to @ctx */
+			if (!dir_emit(ctx, tde->name, tde->name_len,
+					le32_to_cpu(tde->inode),
+					fs_ftype_to_dtype(tde->file_type))) {
+				testfs_put_page(page);
+				return 0;
+			}
+
+			ctx->pos += TEST_FS_DENTRY_SIZE;
+		}
+		testfs_put_page(page);
+	}
+
+	return 0;
+}
+
+const struct file_operations testfs_dir_fops = {
+        .llseek         = generic_file_llseek,
+        .read           = generic_read_dir,
+        .unlocked_ioctl = testfs_ioctl,
+#ifdef CONFIG_COMPAT
+        .compat_ioctl   = testfs_compat_ioctl,
+#endif
+	.fsync		= testfs_fsync,
+	.iterate_shared = testfs_readdir,
 };
