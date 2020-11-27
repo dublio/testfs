@@ -38,7 +38,7 @@ int testfs_get_block_and_offset(struct super_block *sb, ino_t ino,
 	inode_per_block = sbi->s_block_size / sbi->s_inode_size;
 
 	/* get the block index */
-	*blkid = ino / inode_per_block;
+	*blkid = ino / inode_per_block + TEST_FS_BLKID_ITABLE;
 
 	/* get offset within block */
 	*offset = (ino % inode_per_block) * sbi->s_inode_size;
@@ -65,7 +65,7 @@ struct super_operations testfs_sops = {
 
 int testfs_fill_super(struct super_block *sb, void *data, int silent)
 {
-	int ret, block_size, total_blknr;
+	int ret, block_size, inode_size, total_blknr;
 	struct testfs_sb_info *sbi;
 	struct inode *root;
 	struct buffer_head * bh;
@@ -111,6 +111,16 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 				sbi->s_block_size);
 		goto free_bh;
 	}
+	sbi->s_block_size = block_size;
+
+	/* verify inode size */
+	inode_size = le32_to_cpu(tsb->s_inode_size);
+	if (inode_size != TESTFS_DISK_INODE_SIZE) {
+		pr_err("wrong block size %d, expect %d\n", block_size,
+				TESTFS_DISK_INODE_SIZE);
+		goto free_bh;
+	}
+	sbi->s_inode_size = inode_size;
 
 	/* the maximum file size */
 	sb->s_maxbytes = TEST_FS_N_BLOCKS * block_size;
