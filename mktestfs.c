@@ -17,6 +17,7 @@
 #include <dirent.h>
 #include <stdint.h>
 #include <uuid/uuid.h>
+#include <endian.h>
 
 #define __le16 uint16_t
 #define __le32 uint32_t
@@ -123,10 +124,10 @@ static int testfs_write_super_block(int fd, size_t size, struct test_super_block
 	size_t len = TEST_FS_BLOCK_SIZE, ret;
 
 	/* format super block base on image size */
-	tsb->s_version = TEST_FS_V1;
-	tsb->s_block_size = TEST_FS_BLOCK_SIZE;
-	tsb->s_inode_size = TESTFS_DISK_INODE_SIZE;
-	tsb->s_total_blknr = size / TEST_FS_BLOCK_SIZE;
+	tsb->s_version = htole32(TEST_FS_V1);
+	tsb->s_block_size = htole32(TEST_FS_BLOCK_SIZE);
+	tsb->s_inode_size = htole32(TESTFS_DISK_INODE_SIZE);
+	tsb->s_total_blknr = htole32(size / TEST_FS_BLOCK_SIZE);
 
 	/* super_block + inode_bitmap + data_bitmap */
 	index = 3;
@@ -134,18 +135,18 @@ static int testfs_write_super_block(int fd, size_t size, struct test_super_block
 	/* inode block count */
 	inode_per_block = TEST_FS_BLOCK_SIZE / TESTFS_DISK_INODE_SIZE;
 	inode_block_nr = TEST_FS_BLOCK_SIZE / inode_per_block;
-	tsb->s_inode_table_blknr = inode_block_nr;
+	tsb->s_inode_table_blknr = htole32(inode_block_nr);
 
 	index += inode_block_nr;
-	tsb->s_data_blkid = index;
-	tsb->s_data_blknr = tsb->s_total_blknr - index;
+	tsb->s_data_blkid = htole32(index);
+	tsb->s_data_blknr = htole32(tsb->s_total_blknr - index);
 
 	/* uuid */
 	uuid_generate(uuid);
 	memcpy(&tsb->s_uuid[0], &uuid, sizeof(tsb->s_uuid));
 
 	/* magic */
-	tsb->s_magic = TEST_FS_MAGIC;
+	tsb->s_magic = htole32(TEST_FS_MAGIC);
 
 	ret = write(fd, (char *)tsb, len);
 	if (ret != len) {
