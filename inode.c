@@ -390,6 +390,7 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 		if (!test_and_set_bit_le(ino, bitmap))
 			break;
 	}
+	ino++;
 
 	/* write inode bitmap back to disk */
 	mark_buffer_dirty(bh);
