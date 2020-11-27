@@ -154,7 +154,8 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 		ret = PTR_ERR(root);
 		goto free_sbi;
 	}
-	if (!S_ISDIR(root->i_mode) || !root->i_blocks || !root->i_size) {
+
+	if (!S_ISDIR(root->i_mode)) {
 		pr_err("read root inode failed\n");
 		goto free_inode;
 	}
