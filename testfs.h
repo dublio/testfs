@@ -112,6 +112,26 @@ struct testfs_sb_info {
 	u32 s_inode_size;
 };
 
+/**************************************************************
+ * inode
+ **************************************************************/
+
+#define TEST_FS_DENTRY_SIZE	64
+#define TEST_FS_DENTRY_PER_PAGE	(PAGE_SIZE / TEST_FS_DENTRY_SIZE)
+/*
+ * To simplify entry alloc/release/lookup, use fix name length,
+ * and align to page, even some space wasted.
+ *
+ * Total 64: 4 + 1 + 59
+ */
+struct testfs_dir_entry {
+#define TESTFS_FILE_NAME_LEN 59
+	__le32 inode;
+	__u8 name_len;	/* 0 means free slot */
+	__u8 name[TESTFS_FILE_NAME_LEN];
+};
+
+
 int testfs_fill_super(struct super_block *sb, void *data, int silent);
 int testfs_get_block_and_offset(struct super_block *sb, ino_t ino,
 				unsigned long *blkid, unsigned long *offset);

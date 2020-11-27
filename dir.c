@@ -10,18 +10,6 @@ const struct file_operations testfs_dir_fops = {
 	.fsync		= testfs_fsync,
 };
 
-/*
- * To simplify entry alloc/release, use fix name length, even some space wasted
- *
- * Total 64: 4 + 1 + 59
- */
-struct testfs_dir_entry {
-#define TESTFS_FILE_NAME_LEN 59
-	__le32 inode;
-	__u8 name_len;	/* 0 means free slot */
-	__u8 name[TESTFS_FILE_NAME_LEN];
-};
-
 static struct page *testfs_get_page(struct inode *inode, unsigned long n)
 {
         struct address_space *mapping = inode->i_mapping;
@@ -171,7 +159,63 @@ static int testfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
         return testfs_add_inode_to_dir(dentry, inode);
 }
 
+/* find @dentry->d_name.name from @dir's data block */
+static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *ino)
+{
+	struct testfs_dir_entry *tde;
+	struct page *page;
+	unsigned long i, total_pages = dir_pages(dir);
+	unsigned j, name_len = dentry->d_name.len;
+
+	if (name_len > TESTFS_FILE_NAME_LEN)
+		return -ENAMETOOLONG;
+
+	for (i = 0; i < total_pages; i++) {
+		page = testfs_get_page(dir, i);
+		if (IS_ERR(page))
+			return -EIO;
+		tde = (struct testfs_dir_entry *)page_address(page);
+		for (j = 0; j < TEST_FS_DENTRY_PER_PAGE; j++) {
+			if (tde[j].name_len != name_len)
+				continue;
+
+			if (!strncmp(dentry->d_name.name, tde[j].name,name_len)) {
+				*ino = le32_to_cpu(tde[j].inode);
+				testfs_put_page(page);
+				return 0;
+			}
+		}
+		testfs_put_page(page);
+	}
+
+	return -ENOENT;
+}
+
+static struct dentry *testfs_lookup(struct inode *dir, struct dentry *dentry,
+				unsigned int flags)
+{
+	struct inode * inode;
+	ino_t ino;
+	int res;
+
+	res = testfs_name_to_ino(dir, dentry, &ino);
+	if (res) {
+		if (res != -ENOENT)
+			return ERR_PTR(res);
+		inode = NULL;
+	} else {
+		inode = testfs_iget(dir->i_sb, ino);
+		if (inode == ERR_PTR(-ESTALE)) {
+			pr_err("deleted inode referenced: %lu", (unsigned long) ino);
+			return ERR_PTR(-EIO);
+		}
+	}
+
+	return d_splice_alias(inode, dentry);
+}
+
 const struct inode_operations testfs_dir_iops = {
+	.lookup		= testfs_lookup,
 	.create		= testfs_create,
 	.getattr        = testfs_getattr,
 };
