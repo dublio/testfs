@@ -198,17 +198,17 @@ static int testfs_write_root_inode(int fd, struct test_super_block *tsb)
 	size_t ret, len = sizeof(*tdi);
 
 	/* init root inode */
-	tdi->i_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
-	tdi->i_links_count = 1;
-	tdi->i_uid = 0;
-	tdi->i_gid = 0;
+	tdi->i_mode = htole16(S_IFDIR | S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+	tdi->i_links_count = htole16(1);
+	tdi->i_uid = htole32(0);
+	tdi->i_gid = htole32(0);
 #if 0
 	/* no files in root inode */
 	tdi->i_size = sizeof(struct testfs_dir_entry);
 #endif
-	tdi->i_size = 0;
+	tdi->i_size = htole32(0);
 
-	tdi->i_blocks = 0;
+	tdi->i_blocks = htole32(0);
 
 	ret = write(fd, tdi, len);
 	if (ret != len) {
