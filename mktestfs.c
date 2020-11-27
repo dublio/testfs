@@ -57,14 +57,18 @@ struct testfs_disk_inode {
 	__u8   reserved[24];
 };
 
+#define TEST_FS_DENTRY_SIZE	64
+#define TEST_FS_DENTRY_PER_PAGE	(PAGE_SIZE / TEST_FS_DENTRY_SIZE)
 /*
- * To simplify entry alloc/release, use fix name length, even some space wasted
+ * To simplify entry alloc/release/lookup, use fix name length,
+ * and align to page, even some space wasted.
  *
- * Total 64: 4 + 1 + 59
+ * Total 64: 4 + 1 + 1 + 58
  */
 struct testfs_dir_entry {
-#define TESTFS_FILE_NAME_LEN 59
+#define TESTFS_FILE_NAME_LEN 58
 	__le32 inode;
+	__u8 file_type;
 	__u8 name_len;	/* 0 means free slot */
 	__u8 name[TESTFS_FILE_NAME_LEN];
 };

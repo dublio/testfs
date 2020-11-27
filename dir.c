@@ -122,6 +122,7 @@ got:
 	/* find a free slot */
 	entry[i].inode = cpu_to_le32(inode->i_ino);
 	entry[i].name_len = namelen;
+	entry[i].file_type = fs_umode_to_ftype(inode->i_mode);
 	memcpy(entry[i].name, name, namelen);
 
 	err = testfs_commit_chunk(page, pos, entry_size);
