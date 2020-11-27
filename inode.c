@@ -6,8 +6,6 @@ static void init_once(void *foo)
 {
 	struct testfs_inode *ti = (struct testfs_inode *)foo;
 
-	pr_err("%s,%d\n", __func__, __LINE__);
-
 	inode_init_once(&ti->vfs_inode);
 }
 
