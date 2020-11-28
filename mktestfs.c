@@ -274,8 +274,8 @@ int main(int argc, char **argv)
 	printf("\tsizeof(test_super_block):   %lu\n", sizeof(struct test_super_block));
 	printf("\tsizeof(testfs_disk_inode):  %lu\n", sizeof(struct testfs_disk_inode));
 	printf("\tsizeof(testfs_dir_entry):   %lu\n", sizeof(struct testfs_dir_entry));
-	printf("\tblock size:  %lu\n", TEST_FS_BLOCK_SIZE);
-	printf("\ttotal size:  %lu\n", size);
+	printf("\tblock size:    %lu\n", TEST_FS_BLOCK_SIZE);
+	printf("\ttotal blocks:  %lu\n", size / TEST_FS_BLOCK_SIZE);
 
 	/* super block */
 	if (testfs_write_super_block(fd, size, g_tsb)) {
