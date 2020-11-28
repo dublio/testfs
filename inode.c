@@ -202,6 +202,8 @@ int testfs_get_block(struct inode *inode, sector_t iblock,
         bh_result->b_size = (1 << inode->i_blkbits);
         if (new)
                 set_buffer_new(bh_result);
+
+	log_err("ino:%lu, block_index:%u\n", inode->i_ino, bno);
         return 0;
 }
 
