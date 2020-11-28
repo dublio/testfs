@@ -29,7 +29,7 @@ int testfs_get_block_and_offset(struct super_block *sb, ino_t ino,
 	 * less that it.
 	 */
 	if (ino >= TEST_FS_BLOCK_SIZE) {
-		pr_err("ino (%ld) is too large, expect < %d\n",
+		log_err("ino (%ld) is too large, expect < %d\n",
 				ino, TEST_FS_BLOCK_SIZE);
 		return -EINVAL;
 	}
@@ -50,7 +50,7 @@ static void testfs_put_super(struct super_block *sb)
 {
 	struct testfs_sb_info *sbi = (struct testfs_sb_info *)sb->s_fs_info;
 
-	pr_err("%s,%d\n", __func__, __LINE__);
+	log_err("\n");
 
 	brelse(sbi->s_sb_bh);
 	kfree(sb->s_fs_info);
@@ -71,7 +71,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	struct buffer_head * bh;
 	struct test_super_block *tsb;
 
-	pr_err("%s,%d\n", __func__, __LINE__);
+	log_err("\n");
 
 	sbi = kzalloc(sizeof(*sbi), GFP_KERNEL);
 	if (!sbi)
@@ -80,7 +80,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	/* set block size for superblock */
 	block_size = sb_min_blocksize(sb, TEST_FS_BLOCK_SIZE);
 	if (!block_size) {
-		pr_err("failed to set block size (%d) for super block\n",
+		log_err("failed to set block size (%d) for super block\n",
 				TEST_FS_BLOCK_SIZE);
 		goto free_sbi;
 	}
@@ -89,7 +89,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	/* read super block from disk, the offset is 0 */
 	bh = sb_bread_unmovable(sb, TEST_FS_BLKID_SB);
 	if (!bh) {
-		pr_err("failed to read superblock from disk\n");
+		log_err("failed to read superblock from disk\n");
 		goto free_sbi;
 	}
 	sbi->s_sb_bh = bh;
@@ -99,7 +99,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	/* convert them to struct super_block */
 	sb->s_magic = le16_to_cpu(tsb->s_magic);
 	if (sb->s_magic != TEST_FS_MAGIC) {
-		pr_err("Wrong magic number %lx != %x\n",
+		log_err("Wrong magic number %lx != %x\n",
 				sb->s_magic, TEST_FS_MAGIC);
 		goto free_bh;
 	}
@@ -107,7 +107,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	/* verify block size */
 	block_size = le32_to_cpu(tsb->s_block_size);
 	if (block_size != sbi->s_block_size) {
-		pr_err("wrong block size %d, expect %d\n", block_size,
+		log_err("wrong block size %d, expect %d\n", block_size,
 				sbi->s_block_size);
 		goto free_bh;
 	}
@@ -116,7 +116,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	/* verify inode size */
 	inode_size = le32_to_cpu(tsb->s_inode_size);
 	if (inode_size != TESTFS_DISK_INODE_SIZE) {
-		pr_err("wrong block size %d, expect %d\n", block_size,
+		log_err("wrong block size %d, expect %d\n", block_size,
 				TESTFS_DISK_INODE_SIZE);
 		goto free_bh;
 	}
@@ -128,14 +128,14 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	ret = generic_check_addressable(sb->s_blocksize_bits,
 							tsb->s_total_blknr);
 	if (ret) {
-		pr_err("filesystem is too large to mount\n");
+		log_err("filesystem is too large to mount\n");
 		goto free_bh;
 	}
 
 	/* verify filesystem size and block device size */
 	total_blknr = sb->s_bdev->bd_inode->i_size >> sb->s_blocksize_bits;
 	if (total_blknr < tsb->s_total_blknr) {
-		pr_err("filesystem size (%d) > disk size(%d), please re-format\n",
+		log_err("filesystem size (%d) > disk size(%d), please re-format\n",
 			tsb->s_total_blknr, total_blknr);
 		goto free_bh;
 	}
@@ -156,13 +156,13 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	if (!S_ISDIR(root->i_mode)) {
-		pr_err("read root inode failed\n");
+		log_err("read root inode failed\n");
 		goto free_inode;
 	}
 
 	sb->s_root = d_make_root(root);
 	if (!sb->s_root) {
-		pr_err("d make root failed\n");
+		log_err("d make root failed\n");
 		goto free_inode;
 	}
 

@@ -4,8 +4,7 @@ long testfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct inode *inode = file_inode(filp);
 
-	pr_debug("%s,%d ino:%lu cmd: %x, arg:%lx\n",  __func__, __LINE__,
-			inode->i_ino, cmd, arg);
+	log_err("ino:%lu cmd: %x, arg:%lx\n", inode->i_ino, cmd, arg);
 
 	return 0;
 }
@@ -15,8 +14,7 @@ long testfs_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct inode *inode = file_inode(filp);
 
-	pr_debug("%s,%d ino:%lu cmd: %x, arg:%lx\n",  __func__, __LINE__,
-			inode->i_ino, cmd, arg);
+	log_err("ino:%lu cmd: %x, arg:%lx\n", inode->i_ino, cmd, arg);
 
 	return 0;
 }
@@ -24,14 +22,14 @@ long testfs_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 static int testfs_file_open(struct inode *inode, struct file *file)
 {
-	pr_debug("%s,%d inode:%p, file:%p\n", __func__, __LINE__, inode, file);
+	log_err("inode:%p, file:%p\n", inode, file);
 
 	return 0;
 }
 
 static int testfs_file_release(struct inode *inode, struct file *file)
 {
-	pr_debug("%s,%d inode:%p, file:%p\n", __func__, __LINE__, inode, file);
+	log_err("inode:%p, file:%p\n", inode, file);
 
 	return 0;
 }
@@ -43,7 +41,7 @@ int testfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
         ret = generic_file_fsync(file, start, end, datasync);
         if (ret == -EIO)
                 /* We don't really know where the IO error happened... */
-                pr_err("detected IO error when writing metadata buffers");
+                log_err("detected IO error when writing metadata buffers");
         return ret;
 }
 
@@ -65,7 +63,7 @@ int testfs_getattr(const struct path *path, struct kstat *stat,
 {
         struct inode *inode = d_backing_inode(path->dentry);
 
-	pr_debug("%s,%d inode:%p\n", __func__, __LINE__, inode);
+	log_err("inode:%p\n", inode);
 
         generic_fillattr(inode, stat);
         return 0;

@@ -11,7 +11,7 @@ static void init_once(void *foo)
 
 int testfs_inode_cache_init(void)
 {
-	pr_err("%s,%d\n", __func__, __LINE__);
+	log_err("\n");
 
 	testfs_icachep = kmem_cache_create("testfs_icache",
 				sizeof(struct testfs_inode), 0,
@@ -32,7 +32,7 @@ struct inode *testfs_alloc_inode(struct super_block *sb)
 {
 	struct testfs_inode *ti;
 
-	pr_err("%s,%d\n", __func__, __LINE__);
+	log_err("\n");
 
 	ti = kmem_cache_alloc(testfs_icachep, GFP_KERNEL);
 	if (!ti)
@@ -45,7 +45,7 @@ void testfs_free_inode(struct inode *inode)
 {
 	struct testfs_inode *ti = TESTFS_I(inode);
 
-	pr_err("%s,%d\n", __func__, __LINE__);
+	log_err("\n");
 
 	kmem_cache_free(testfs_icachep, ti);
 }
@@ -89,7 +89,7 @@ static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
 	/* read data bitmap */
 	bh = sb_bread_unmovable(sb, TEST_FS_BLKID_DBITMAP);
 	if (!bh) {
-		pr_err("failed to read data bitmap\n");
+		log_err("failed to read data bitmap\n");
 		return -EIO;
 	}
 
@@ -108,7 +108,7 @@ static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
 	}
 
 	if (!got) {
-		pr_err("not found available data block\n");
+		log_err("not found available data block\n");
 		goto free_bh;
 	}
 
@@ -149,7 +149,7 @@ static int _testfs_get_block(struct inode *inode, sector_t iblock, u32 *bno,
 	 * we only allocate maximun 16 blocks for a file.
 	 */
 	if (inode->i_size >= TEST_FS_FILE_MAX_BYTE) {
-		pr_err("file size limitation\n");
+		log_err("file size limitation\n");
 		return -ENOSPC;
 	}
 
@@ -343,7 +343,7 @@ struct inode *testfs_iget(struct super_block *sb, int ino)
 		inode->i_fop = &testfs_dir_fops;
 		inode->i_mapping->a_ops = &testfs_aops;
 	} else {
-		pr_err("wrong mode, %x\n", inode->i_mode);
+		log_err("wrong mode, %x\n", inode->i_mode);
 		goto out;
 	}
 
@@ -376,7 +376,7 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 	/* read inode bitmap from disk */
 	bh = sb_bread_unmovable(sb, TEST_FS_BLKID_IBITMAP);
 	if (!bh) {
-		pr_err("failed to read inode bitmap\n");
+		log_err("failed to read inode bitmap\n");
 		goto free_inode;
 	}
 
@@ -407,7 +407,7 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 	inode->i_mapping->a_ops = &testfs_aops;
 
 	if (insert_inode_locked(inode) < 0) {
-		pr_err("failed to insert inode: %ld\n", inode->i_ino);
+		log_err("failed to insert inode: %ld\n", inode->i_ino);
 		goto free_inode;
 	}
 

@@ -63,7 +63,7 @@ static int testfs_add_link(struct dentry *dentry, struct inode *inode)
 	loff_t pos = 0, entry_size = sizeof(struct testfs_dir_entry);
 
 	if (namelen > TESTFS_FILE_NAME_LEN) {
-		pr_err("max name lenght:%d\n", TESTFS_FILE_NAME_LEN);
+		log_err("max name lenght:%d\n", TESTFS_FILE_NAME_LEN);
 		return -EINVAL;
 	}
 
@@ -197,7 +197,7 @@ static struct dentry *testfs_lookup(struct inode *dir, struct dentry *dentry,
 	} else {
 		inode = testfs_iget(dir->i_sb, ino);
 		if (inode == ERR_PTR(-ESTALE)) {
-			pr_err("deleted inode referenced: %lu", (unsigned long) ino);
+			log_err("deleted inode referenced: %lu", (unsigned long) ino);
 			return ERR_PTR(-EIO);
 		}
 	}
@@ -232,7 +232,7 @@ static int testfs_readdir(struct file *file, struct dir_context *ctx)
 	for (; i < total_pages; i++, offset = 0) {
 		page = testfs_get_page(inode, i);
 		if (IS_ERR(page)) {
-			pr_err("bad page in inode %lu, skip\n", inode->i_ino);
+			log_err("bad page in inode %lu, skip\n", inode->i_ino);
 			ctx->pos += PAGE_SIZE - offset;
 			return PTR_ERR(page);
 		}

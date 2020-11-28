@@ -33,6 +33,8 @@
 #include <linux/proc_fs.h>
 #include <linux/iversion.h>
 
+
+#define log_err(fmt,...) pr_err("[%s, %d] "fmt, __func__, __LINE__, ## __VA_ARGS__)
 /**************************************************************
  * inode
  **************************************************************/
