@@ -23,7 +23,7 @@
 #define __le32 uint32_t
 #define __u8 uint8_t
 
-#define TESTFS_ROOT_INO		1
+#define TESTFS_ROOT_INO		0
 #define TESTFS_DISK_INODE_SIZE	128
 
 /* simplify the inode strcture, only support 16 blocks in a file */

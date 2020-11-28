@@ -68,7 +68,7 @@ struct testfs_disk_inode *testfs_get_disk_inode(struct super_block *sb,
 	 * get the block index which contains this inode, and the offset
 	 * within that block
 	 */
-	if (testfs_get_block_and_offset(sb, ino - 1, &blkid, &offset))
+	if (testfs_get_block_and_offset(sb, ino, &blkid, &offset))
 		return ERR_PTR(-EINVAL);
 
 	tmp = sb_bread(sb, blkid);
@@ -391,7 +391,6 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 			break;
 	}
 	log_err("ino:%lu\n", ino);
-	ino++;
 
 	/* write inode bitmap back to disk */
 	mark_buffer_dirty(bh);

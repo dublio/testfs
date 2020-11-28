@@ -39,7 +39,7 @@
  * inode
  **************************************************************/
 
-#define TESTFS_ROOT_INO		1
+#define TESTFS_ROOT_INO		0
 struct testfs_inode {
 	struct inode vfs_inode;
 	void *priv;
