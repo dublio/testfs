@@ -32,6 +32,7 @@
 #include <asm/unaligned.h>
 #include <linux/proc_fs.h>
 #include <linux/iversion.h>
+#include <linux/writeback.h>
 
 
 #define log_err(fmt,...) pr_err("[%s, %d] "fmt, __func__, __LINE__, ## __VA_ARGS__)
@@ -149,6 +150,7 @@ int testfs_inode_cache_init(void);
 void testfs_inode_cache_deinit(void);
 void testfs_free_inode(struct inode *inode);
 struct inode *testfs_iget(struct super_block *sb, int ino);
+int testfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 int testfs_fsync(struct file *file, loff_t start, loff_t end, int datasync);
 long testfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 #ifdef CONFIG_COMPAT

@@ -80,6 +80,47 @@ struct testfs_disk_inode *testfs_get_disk_inode(struct super_block *sb,
 	return (struct testfs_disk_inode *)(tmp->b_data + offset);
 }
 
+int testfs_write_inode(struct inode *inode, struct writeback_control *wbc)
+{
+	struct super_block *sb = inode->i_sb;
+	struct testfs_disk_inode *tdi;
+	struct buffer_head *bh;
+	uid_t uid = i_uid_read(inode);
+	gid_t gid = i_gid_read(inode);
+	int is_sync = wbc->sync_mode == WB_SYNC_ALL;
+
+	log_err("ino:%lu\n", inode->i_ino);
+
+	tdi = testfs_get_disk_inode(sb, inode->i_ino, &bh);
+	if (IS_ERR(tdi))
+		return -EIO;
+
+	/* fillin inode info into @tdi disk inode */
+	tdi->i_mode = cpu_to_le16(inode->i_mode);
+	tdi->i_uid = cpu_to_le32(uid);
+	tdi->i_gid = cpu_to_le32(gid);
+	tdi->i_size = cpu_to_le32(inode->i_size);
+	tdi->i_atime = cpu_to_le32(inode->i_atime.tv_sec);
+	tdi->i_ctime = cpu_to_le32(inode->i_ctime.tv_sec);
+	tdi->i_mtime = cpu_to_le32(inode->i_mtime.tv_sec);
+	tdi->i_generation = cpu_to_le32(inode->i_generation);
+	tdi->i_links_count = cpu_to_le16(inode->i_nlink);
+	tdi->i_blocks = cpu_to_le32(inode->i_blocks);
+
+	/* block mapping ? */
+
+	mark_buffer_dirty(bh);
+
+	if (is_sync)
+		sync_dirty_buffer(bh);
+
+	brelse(bh);
+
+	return 0;
+}
+
+
+
 static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
 {
 	struct buffer_head *bh;

@@ -61,6 +61,7 @@ static void testfs_put_super(struct super_block *sb)
 struct super_operations testfs_sops = {
 	.free_inode = testfs_free_inode,
 	.alloc_inode = testfs_alloc_inode,
+	.write_inode = testfs_write_inode,
 	.put_super = testfs_put_super,
 };
 
