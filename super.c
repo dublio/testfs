@@ -11,6 +11,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/buffer_head.h>
+#include <linux/random.h>
 
 #include "testfs.h"
 
@@ -139,6 +140,10 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 			tsb->s_total_blknr, total_blknr);
 		goto free_bh;
 	}
+
+	/* basic initialization */
+	spin_lock_init(&sbi->s_inode_gen_lock);
+	get_random_bytes(&sbi->s_inode_gen, sizeof(u32));
 
 	ret = -ENOMEM;
 

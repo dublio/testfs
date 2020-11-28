@@ -405,6 +405,9 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 	inode->i_op = &testfs_file_iops;
 	inode->i_fop = &testfs_file_fops;
 	inode->i_mapping->a_ops = &testfs_aops;
+	spin_lock(&sbi->s_inode_gen_lock);
+	inode->i_generation = sbi->s_inode_gen++;
+	spin_unlock(&sbi->s_inode_gen_lock);
 
 	if (insert_inode_locked(inode) < 0) {
 		log_err("failed to insert inode: %ld\n", inode->i_ino);
