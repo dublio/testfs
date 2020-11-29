@@ -45,7 +45,7 @@ void testfs_free_inode(struct inode *inode)
 {
 	struct testfs_inode *ti = TESTFS_I(inode);
 
-	log_err("\n");
+	log_err("ino:%lu\n", inode->i_ino);
 
 	kmem_cache_free(testfs_icachep, ti);
 }

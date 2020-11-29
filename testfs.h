@@ -35,7 +35,7 @@
 #include <linux/writeback.h>
 
 
-#define log_err(fmt,...) pr_err("[%s, %d] "fmt, __func__, __LINE__, ## __VA_ARGS__)
+#define log_err(fmt,...) pr_err("[%-30s,%-4d] "fmt,  __func__, __LINE__,  ## __VA_ARGS__)
 /**************************************************************
  * inode
  **************************************************************/

@@ -261,6 +261,15 @@ static int testfs_readdir(struct file *file, struct dir_context *ctx)
 	return 0;
 }
 
+size_t testfs_read_dir(struct file *filp, char __user *buf, size_t siz,
+					loff_t *ppos)
+{
+	struct inode *inode = file_inode(filp);
+
+	log_err("ino:%lu\n", inode->i_ino);
+	return generic_read_dir(filp, __user buf, siz, ppos);
+}
+
 const struct file_operations testfs_dir_fops = {
         .llseek         = generic_file_llseek,
         .read           = generic_read_dir,

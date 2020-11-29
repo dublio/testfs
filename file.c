@@ -22,14 +22,14 @@ long testfs_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 static int testfs_file_open(struct inode *inode, struct file *file)
 {
-	log_err("inode:%p, file:%p\n", inode, file);
+	log_err("ino:%lu\n", inode->i_ino);
 
 	return 0;
 }
 
 static int testfs_file_release(struct inode *inode, struct file *file)
 {
-	log_err("inode:%p, file:%p\n", inode, file);
+	log_err("ino:%lu\n", inode->i_ino);
 
 	return 0;
 }
@@ -63,7 +63,7 @@ int testfs_getattr(const struct path *path, struct kstat *stat,
 {
         struct inode *inode = d_backing_inode(path->dentry);
 
-	log_err("inode:%p\n", inode);
+	log_err("ino:%lu\n", inode->i_ino);
 
         generic_fillattr(inode, stat);
         return 0;
