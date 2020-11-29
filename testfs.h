@@ -118,6 +118,7 @@ struct testfs_sb_info {
 	int inode_table_blknr;
 	u32 s_block_size;
 	u32 s_inode_size;
+	u32 s_data_blkid;
 
 	spinlock_t s_inode_gen_lock;
 	u32 s_inode_gen;

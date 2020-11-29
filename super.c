@@ -145,6 +145,7 @@ int testfs_fill_super(struct super_block *sb, void *data, int silent)
 	/* basic initialization */
 	spin_lock_init(&sbi->s_inode_gen_lock);
 	get_random_bytes(&sbi->s_inode_gen, sizeof(u32));
+	sbi->s_data_blkid = le32_to_cpu(tsb->s_data_blkid);
 
 	ret = -ENOMEM;
 

@@ -131,6 +131,7 @@ int testfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
 {
 	struct buffer_head *bh;
+	struct testfs_sb_info *sbi = sb->s_fs_info;
 	unsigned long *bitmap, index = 0;
 	bool got = false;
 
@@ -149,7 +150,7 @@ static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
 
 		/* if return 0, means this bit has been used, retry other bit */
 		if (!test_and_set_bit_le(index, bitmap)) {
-			*blkid = (u32)index;
+			*blkid = (u32)index + sbi->s_data_blkid;
 			got = true;
 			break;
 		}
