@@ -83,7 +83,7 @@ static int testfs_add_link(struct dentry *dentry, struct inode *inode)
 
 		/* check if exist or find a free slot to store this inode. */
 		entry = (struct testfs_dir_entry *)page_address(page);
-		for (i = 0; i < entry_per_page; i++) {
+		for (i = 0; i < entry_per_page; i++, pos += entry_size) {
 			if (pos == dir->i_size)
 				goto got;
 			if (entry[i].name_len > 0) {
@@ -97,7 +97,6 @@ static int testfs_add_link(struct dentry *dentry, struct inode *inode)
 				}
 			} else
 				goto got;
-			pos +=  entry_size;
 		}
 		unlock_page(page);
 	}
