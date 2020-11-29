@@ -113,7 +113,7 @@ int testfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 	tdi->i_blocks = cpu_to_le32(inode->i_blocks);
 
 	/* block mapping */
-	for (i = 0; i < inode->i_blocks; i++)
+	for (i = 0; i < TEST_FS_N_BLOCKS; i++)
 		tdi->i_block[i] = ti->i_block[i];
 
 	ti->is_new_inode = 0;
