@@ -205,12 +205,6 @@ static struct dentry *testfs_lookup(struct inode *dir, struct dentry *dentry,
 	return d_splice_alias(inode, dentry);
 }
 
-const struct inode_operations testfs_dir_iops = {
-	.lookup		= testfs_lookup,
-	.create		= testfs_create,
-	.getattr        = testfs_getattr,
-};
-
 static int testfs_readdir(struct file *file, struct dir_context *ctx)
 {
 	loff_t pos = ctx->pos;
@@ -279,4 +273,10 @@ const struct file_operations testfs_dir_fops = {
 #endif
 	.fsync		= testfs_fsync,
 	.iterate_shared = testfs_readdir,
+};
+
+const struct inode_operations testfs_dir_iops = {
+	.lookup		= testfs_lookup,
+	.create		= testfs_create,
+	.getattr        = testfs_getattr,
 };

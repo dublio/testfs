@@ -45,19 +45,6 @@ int testfs_fsync(struct file *file, loff_t start, loff_t end, int datasync)
         return ret;
 }
 
-const struct file_operations testfs_file_fops = {
-        .llseek         = generic_file_llseek,
-        .read_iter      = generic_file_read_iter,
-        .write_iter     = generic_file_write_iter,
-        .unlocked_ioctl = testfs_ioctl,
-#ifdef CONFIG_COMPAT
-        .compat_ioctl   = testfs_compat_ioctl,
-#endif
-        .open           = testfs_file_open,
-        .release        = testfs_file_release,
-	.fsync		= testfs_fsync,
-};
-
 int testfs_getattr(const struct path *path, struct kstat *stat,
                 unsigned int request_mask, unsigned int query_flags)
 {
@@ -71,4 +58,17 @@ int testfs_getattr(const struct path *path, struct kstat *stat,
 
 const struct inode_operations testfs_file_iops = {
         .getattr        = testfs_getattr,
+};
+
+const struct file_operations testfs_file_fops = {
+        .llseek         = generic_file_llseek,
+        .read_iter      = generic_file_read_iter,
+        .write_iter     = generic_file_write_iter,
+        .unlocked_ioctl = testfs_ioctl,
+#ifdef CONFIG_COMPAT
+        .compat_ioctl   = testfs_compat_ioctl,
+#endif
+        .open           = testfs_file_open,
+        .release        = testfs_file_release,
+	.fsync		= testfs_fsync,
 };
