@@ -83,18 +83,23 @@ struct testfs_disk_inode *testfs_get_disk_inode(struct super_block *sb,
 int testfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 {
 	struct super_block *sb = inode->i_sb;
+	struct testfs_inode *ti = TESTFS_I(inode);
 	struct testfs_disk_inode *tdi;
 	struct buffer_head *bh;
 	uid_t uid = i_uid_read(inode);
 	gid_t gid = i_gid_read(inode);
-	int is_sync = wbc->sync_mode == WB_SYNC_ALL;
+	int i, is_sync = wbc->sync_mode == WB_SYNC_ALL;
 
 	log_err("ino:%lu\n", inode->i_ino);
 
 	tdi = testfs_get_disk_inode(sb, inode->i_ino, &bh);
-	if (IS_ERR(tdi))
+	if (IS_ERR(tdi)) {
+		log_err("ino:%lu, failed to read on-disk inode\n",inode->i_ino);
 		return -EIO;
+	}
 
+	if (ti->is_new_inode)
+		memset(tdi, 0, sizeof(*tdi));
 	/* fillin inode info into @tdi disk inode */
 	tdi->i_mode = cpu_to_le16(inode->i_mode);
 	tdi->i_uid = cpu_to_le32(uid);
@@ -107,7 +112,11 @@ int testfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 	tdi->i_links_count = cpu_to_le16(inode->i_nlink);
 	tdi->i_blocks = cpu_to_le32(inode->i_blocks);
 
-	/* block mapping ? */
+	/* block mapping */
+	for (i = 0; i < inode->i_blocks; i++)
+		tdi->i_block[i] = ti->i_block[i];
+
+	ti->is_new_inode = 0;
 
 	mark_buffer_dirty(bh);
 
@@ -118,8 +127,6 @@ int testfs_write_inode(struct inode *inode, struct writeback_control *wbc)
 
 	return 0;
 }
-
-
 
 static int testfs_get_new_block(struct super_block *sb, u32 *blkid)
 {
@@ -179,9 +186,8 @@ free_bh:
 static int _testfs_get_block(struct inode *inode, sector_t iblock, u32 *bno,
 			bool *new, int create)
 {
-	struct buffer_head *disk_inode_bh;
 	struct super_block *sb = inode->i_sb;
-	struct testfs_disk_inode *tdi;
+	struct testfs_inode *ti = TESTFS_I(inode);
 	unsigned old_blkid;
 	int ret = -ENOSPC;
 
@@ -189,18 +195,13 @@ static int _testfs_get_block(struct inode *inode, sector_t iblock, u32 *bno,
 	 * how many blocked has been allocated ?, to simplify the code logic
 	 * we only allocate maximun 16 blocks for a file.
 	 */
-	if (inode->i_size >= TEST_FS_FILE_MAX_BYTE) {
+	if (iblock >= TEST_FS_N_BLOCKS) {
 		log_err("file size limitation\n");
 		return -ENOSPC;
 	}
 
-	/* read inode info from disk for this ino */
-	tdi = testfs_get_disk_inode(sb, inode->i_ino, &disk_inode_bh);
-	if (IS_ERR(tdi))
-		return -EIO;
-
 	/* check allocated ? */
-	old_blkid = le32_to_cpu(tdi->i_block[iblock]);
+	old_blkid = le32_to_cpu(ti->i_block[iblock]);
 	if (old_blkid > 0) {
 		*bno = old_blkid;
 		ret = 0;
@@ -218,13 +219,8 @@ static int _testfs_get_block(struct inode *inode, sector_t iblock, u32 *bno,
 	*new = true;
 
 	/* update inode dentry */
-	tdi->i_blocks = cpu_to_le32(le32_to_cpu(tdi->i_blocks) + 1);
-	tdi->i_block[iblock] = cpu_to_le32(*bno);
-	mark_buffer_dirty(disk_inode_bh);
-	sync_dirty_buffer(disk_inode_bh);
-
+	ti->i_block[iblock] = cpu_to_le32(*bno);
 out:
-	brelse(disk_inode_bh);
 	return ret;
 }
 
@@ -373,8 +369,10 @@ struct inode *testfs_iget(struct super_block *sb, int ino)
 	inode->i_atime.tv_nsec = 0;
 	inode->i_mtime.tv_nsec = 0;
 	inode->i_ctime.tv_nsec = 0;
-
 	inode->i_generation = le32_to_cpu(tdi->i_generation);
+	ti->is_new_inode = 0;
+	/* copy the mapping from the disk to in-memory structure */
+	memcpy(ti->i_block, tdi->i_block, sizeof(ti->i_block));
 
 	/* operations */
 	if (S_ISREG(inode->i_mode)) {
@@ -404,6 +402,7 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 				const struct qstr *qstr)
 {
 	struct inode *inode;
+	struct testfs_inode *ti;
 	struct super_block *sb;
 	struct testfs_sb_info *sbi;
 	struct buffer_head *bh;
@@ -451,6 +450,10 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 	spin_lock(&sbi->s_inode_gen_lock);
 	inode->i_generation = sbi->s_inode_gen++;
 	spin_unlock(&sbi->s_inode_gen_lock);
+
+	ti = TESTFS_I(inode);
+	ti->is_new_inode = 1;
+	memset(ti->i_block, 0, sizeof(ti->i_block));
 
 	if (insert_inode_locked(inode) < 0) {
 		log_err("failed to insert inode: %ld\n", inode->i_ino);

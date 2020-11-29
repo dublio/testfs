@@ -41,15 +41,20 @@
  **************************************************************/
 
 #define TESTFS_ROOT_INO		0
-struct testfs_inode {
-	struct inode vfs_inode;
-	void *priv;
-};
-
 #define TESTFS_DISK_INODE_SIZE	128
-
 /* simplify the inode strcture, only support 16 blocks in a file */
 #define TEST_FS_N_BLOCKS	16
+
+struct testfs_inode {
+	struct inode vfs_inode;
+	/*
+	 * use to record the mapping between disk->lba and file's offset,
+	 * to avoid read/write disk every time, we only record/update the mapping
+	 * int memory, until it was write back to the underline disk.
+	 */
+	__le32 i_block[TEST_FS_N_BLOCKS];/* Pointers to blocks */
+	int is_new_inode;
+};
 
 struct testfs_disk_inode {
 	__le16 i_mode;		/* File mode */
