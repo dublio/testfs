@@ -201,6 +201,49 @@ static struct testfs_dir_entry *testfs_lookup_by_name(struct inode *dir,
 	return ERR_PTR(-ENOENT);
 }
 
+static int testfs_unlink(struct inode *dir, struct dentry *dentry)
+{
+	struct inode * inode = d_inode(dentry);
+	struct testfs_dir_entry *tde;
+	struct page *page;
+	char *kaddr;
+	int ret;
+	loff_t pos;
+
+	tde = testfs_lookup_by_name(dir, dentry, &page);
+	if (IS_ERR(tde))
+		return PTR_ERR(tde);
+
+	/* page will be unlock when write done ??? */
+	lock_page(page);
+
+	/*  prepare write to the disk, get the mapping between page and lba */
+	kaddr = page_address(page);
+	pos = page_offset(page) + ((char *)tde - kaddr);
+
+	ret = testfs_prepare_block(page, pos, TEST_FS_DENTRY_SIZE);
+	if(ret) {
+		log_err("prepare block error: parent.ino=%lu, dentry=%s\n",
+				dir->i_ino, dentry->d_name.name);
+		unlock_page(page);
+		goto out;
+	}
+
+	/* clear this dentry, and mark it as unused by set name_len to 0 */
+	memset(tde, 0, TEST_FS_DENTRY_SIZE);
+
+	ret = testfs_commit_block(page, pos, TEST_FS_DENTRY_SIZE);
+	if(ret)
+		log_err("write block error: parent.ino=%lu, dentry=%s\n",
+				dir->i_ino, dentry->d_name.name);
+	else
+		inode_dec_link_count(inode);
+out:
+	testfs_put_page(page);
+
+	return ret;
+}
+
 static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *ino)
 {
 	struct testfs_dir_entry *tde;
@@ -393,6 +436,7 @@ const struct file_operations testfs_dir_fops = {
 const struct inode_operations testfs_dir_iops = {
 	.lookup		= testfs_lookup,
 	.create		= testfs_create,
+	.unlink		= testfs_unlink,
 	.mkdir		= testfs_mkdir,
 	.getattr        = testfs_getattr,
 };
