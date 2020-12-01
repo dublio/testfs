@@ -206,8 +206,8 @@ static struct dentry *testfs_lookup(struct inode *dir, struct dentry *dentry,
 
 static int testfs_readdir(struct file *file, struct dir_context *ctx)
 {
-	loff_t pos = ctx->pos;
 	struct inode *inode = file_inode(file);
+	loff_t pos = ctx->pos, total_size = inode->i_size;
 	struct testfs_dir_entry *tde;
 	unsigned int offset = pos & ~PAGE_MASK;
 	unsigned long i = pos >> PAGE_SHIFT;
@@ -235,6 +235,12 @@ static int testfs_readdir(struct file *file, struct dir_context *ctx)
 		s += offset;
 
 		for (;s < e; s += TEST_FS_DENTRY_SIZE) {
+			/* check current pos and total file size */
+			if (ctx->pos == total_size) {
+				testfs_put_page(page);
+				return 0;
+			}
+
 			tde = (struct testfs_dir_entry *)s;
 			if (tde->name_len == 0)
 				continue;
