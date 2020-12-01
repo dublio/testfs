@@ -333,6 +333,24 @@ const struct address_space_operations testfs_aops = {
         .direct_IO              = testfs_direct_IO,
 };
 
+static int testfs_set_ops(struct inode *inode)
+{
+	if (S_ISREG(inode->i_mode)) {
+		inode->i_op = &testfs_file_iops;
+		inode->i_fop = &testfs_file_fops;
+		inode->i_mapping->a_ops = &testfs_aops;
+	}  else if (S_ISDIR(inode->i_mode)) {
+		inode->i_op = &testfs_dir_iops;
+		inode->i_fop = &testfs_dir_fops;
+		inode->i_mapping->a_ops = &testfs_aops;
+	} else {
+		log_err("not supported mode, %x\n", inode->i_mode);
+		return -1;
+	}
+
+	return 0;
+}
+
 struct inode *testfs_iget(struct super_block *sb, int ino)
 {
 	struct inode *inode;
@@ -376,18 +394,8 @@ struct inode *testfs_iget(struct super_block *sb, int ino)
 	memcpy(ti->i_block, tdi->i_block, sizeof(ti->i_block));
 
 	/* operations */
-	if (S_ISREG(inode->i_mode)) {
-		inode->i_op = &testfs_file_iops;
-		inode->i_fop = &testfs_file_fops;
-		inode->i_mapping->a_ops = &testfs_aops;
-	}  else if (S_ISDIR(inode->i_mode)) {
-		inode->i_op = &testfs_dir_iops;
-		inode->i_fop = &testfs_dir_fops;
-		inode->i_mapping->a_ops = &testfs_aops;
-	} else {
-		log_err("wrong mode, %x\n", inode->i_mode);
+	if (testfs_set_ops(inode))
 		goto out;
-	}
 
 	brelse (bh);
 	unlock_new_inode(inode);
@@ -445,9 +453,10 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 	inode->i_ino = ino;
 	inode->i_blocks = 0;
 	inode->i_mtime = inode->i_atime = inode->i_ctime = current_time(inode);
-	inode->i_op = &testfs_file_iops;
-	inode->i_fop = &testfs_file_fops;
-	inode->i_mapping->a_ops = &testfs_aops;
+	if (testfs_set_ops(inode)) {
+		log_err("failed to set ops for inode:%lu\n", inode->i_ino);
+		goto free_inode;
+	}
 	spin_lock(&sbi->s_inode_gen_lock);
 	inode->i_generation = sbi->s_inode_gen++;
 	spin_unlock(&sbi->s_inode_gen_lock);
