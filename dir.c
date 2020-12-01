@@ -27,7 +27,12 @@ static void testfs_put_page(struct page *page)
 	put_page(page);
 }
 
-static int testfs_commit_chunk(struct page *page, loff_t pos, unsigned len)
+static int testfs_prepare_block(struct page *page, loff_t pos, unsigned len)
+{
+	return __block_write_begin(page, pos, len, testfs_get_block);
+}
+
+static int testfs_commit_block(struct page *page, loff_t pos, unsigned len)
 {
         struct address_space *mapping = page->mapping;
         struct inode *dir = mapping->host;
@@ -103,7 +108,7 @@ static int testfs_add_link(struct dentry *dentry, struct inode *inode)
 	BUG();
 	return -EINVAL;
 got:
-	if (__block_write_begin(page, pos, entry_size, testfs_get_block)) {
+	if (testfs_prepare_block(page, pos, entry_size)) {
 		unlock_page(page);
 		testfs_put_page(page);
 		return -EIO;
@@ -114,7 +119,7 @@ got:
 	entry[i].file_type = fs_umode_to_ftype(inode->i_mode);
 	memcpy(entry[i].name, name, namelen);
 
-	err = testfs_commit_chunk(page, pos, entry_size);
+	err = testfs_commit_block(page, pos, entry_size);
 
 	dir->i_mtime = dir->i_ctime = current_time(dir);
         mark_inode_dirty(dir);
@@ -216,7 +221,7 @@ static int testfs_make_empty_dir(struct inode *parent, struct inode *new_dir)
 	if (!page)
 		return -ENOMEM;
 
-	err = __block_write_begin(page, 0, block_size, testfs_get_block);
+	err = testfs_prepare_block(page, 0, block_size);
 	if (err) {
 		unlock_page(page);
 		goto fail;
@@ -236,7 +241,7 @@ static int testfs_make_empty_dir(struct inode *parent, struct inode *new_dir)
 	tde->inode = cpu_to_le32(parent->i_ino);
 	tde->file_type = fs_umode_to_ftype(parent->i_mode);
 	kunmap_atomic(kaddr);
-	err = testfs_commit_chunk(page, 0, block_size);
+	err = testfs_commit_block(page, 0, block_size);
 fail:
 	put_page(page);
 	return err;
