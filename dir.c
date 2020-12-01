@@ -204,6 +204,81 @@ static struct dentry *testfs_lookup(struct inode *dir, struct dentry *dentry,
 	return d_splice_alias(inode, dentry);
 }
 
+static int testfs_make_empty_dir(struct inode *parent, struct inode *new_dir)
+{
+	struct page *page;
+	unsigned block_size = new_dir->i_sb->s_blocksize;
+	struct testfs_dir_entry *tde;
+	int err;
+	void *kaddr;
+
+	page = grab_cache_page(new_dir->i_mapping, 0);
+	if (!page)
+		return -ENOMEM;
+
+	err = __block_write_begin(page, 0, block_size, testfs_get_block);
+	if (err) {
+		unlock_page(page);
+		goto fail;
+	}
+	kaddr = kmap_atomic(page);
+	memset(kaddr, 0, block_size);
+	tde = (struct testfs_dir_entry *)kaddr;
+	tde->name_len = 1;
+	tde->name[0] = '.';
+	tde->inode = cpu_to_le32(new_dir->i_ino);
+	tde->file_type = fs_umode_to_ftype(new_dir->i_mode);
+
+	tde = (struct testfs_dir_entry *)((char *)kaddr + TEST_FS_DENTRY_SIZE);
+	tde->name_len = 2;
+	tde->name[0] = '.';
+	tde->name[1] = '.';
+	tde->inode = cpu_to_le32(parent->i_ino);
+	tde->file_type = fs_umode_to_ftype(parent->i_mode);
+	kunmap_atomic(kaddr);
+	err = testfs_commit_chunk(page, 0, block_size);
+fail:
+	put_page(page);
+	return err;
+}
+
+static int testfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+{
+	struct inode *inode;
+	int ret = 0;
+
+	inode_inc_link_count(dir);
+	inode = testfs_new_inode(dir, S_IFDIR | mode, &dentry->d_name);
+	if (IS_ERR(inode)) {
+		ret = PTR_ERR(inode);
+		goto dec_dir_link;
+	}
+	inode_inc_link_count(inode);
+
+	ret = testfs_make_empty_dir(dir, inode);
+	if (ret) {
+		log_err("failed to create empty dir, parent:%lu, child:%lu\n",
+			dir->i_ino, inode->i_ino);
+		goto destroy_inode;
+	}
+
+	ret = testfs_add_inode_to_dir(dentry, inode);
+	if (ret) {
+		log_err("failed to add dir, parent:%lu, child:%lu\n",
+			dir->i_ino, inode->i_ino);
+		goto destroy_inode;
+	}
+
+	return 0;
+
+destroy_inode:
+        inode_dec_link_count(inode);
+        discard_new_inode(inode);
+dec_dir_link:
+	inode_dec_link_count(dir);
+	return ret;
+}
+
 static int testfs_readdir(struct file *file, struct dir_context *ctx)
 {
 	struct inode *inode = file_inode(file);
@@ -283,5 +358,6 @@ const struct file_operations testfs_dir_fops = {
 const struct inode_operations testfs_dir_iops = {
 	.lookup		= testfs_lookup,
 	.create		= testfs_create,
+	.mkdir		= testfs_mkdir,
 	.getattr        = testfs_getattr,
 };
