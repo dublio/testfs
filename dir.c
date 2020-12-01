@@ -161,6 +161,7 @@ static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *i
 	struct page *page;
 	unsigned long i, total_pages = dir_pages(dir);
 	unsigned j, name_len = dentry->d_name.len;
+	loff_t pos = 0, entry_size = sizeof(struct testfs_dir_entry);
 
 	if (name_len > TESTFS_FILE_NAME_LEN)
 		return -ENAMETOOLONG;
@@ -170,7 +171,11 @@ static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *i
 		if (IS_ERR(page))
 			return -EIO;
 		tde = (struct testfs_dir_entry *)page_address(page);
-		for (j = 0; j < TEST_FS_DENTRY_PER_PAGE; j++) {
+		for (j = 0; j < TEST_FS_DENTRY_PER_PAGE; j++, pos += entry_size) {
+			if (pos == dir->i_size) {
+				testfs_put_page(page);
+				return -ENOENT;
+			}
 			if (tde[j].name_len != name_len)
 				continue;
 
