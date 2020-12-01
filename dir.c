@@ -154,8 +154,19 @@ static int testfs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
         return testfs_add_inode_to_dir(dentry, inode);
 }
 
-/* find @dentry->d_name.name from @dir's data block */
-static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *ino)
+/**
+ * testfs_lookup_by_name - lookup a file/dir/symlink by name
+ *
+ * @dir:	the parent direcotry will be searched
+ * @dentry:	the dentry->d_name.name will be will be searched
+ * @pg:		the page pointer that contains struct testfs_dir_entry
+ *
+ * Attenton: the caller should unmap and put @pg by call testfs_put_page
+ *
+ * Return: the pointer of struct testfs_dir_entry* on succes, others on error
+ */
+static struct testfs_dir_entry *testfs_lookup_by_name(struct inode *dir,
+					struct dentry *dentry, struct page **pg)
 {
 	struct testfs_dir_entry *tde;
 	struct page *page;
@@ -164,31 +175,45 @@ static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *i
 	loff_t pos = 0, entry_size = sizeof(struct testfs_dir_entry);
 
 	if (name_len > TESTFS_FILE_NAME_LEN)
-		return -ENAMETOOLONG;
+		return ERR_PTR(-ENAMETOOLONG);
 
 	for (i = 0; i < total_pages; i++) {
 		page = testfs_get_page(dir, i);
 		if (IS_ERR(page))
-			return -EIO;
+			return ERR_PTR(-EIO);
 		tde = (struct testfs_dir_entry *)page_address(page);
 		for (j = 0; j < TEST_FS_DENTRY_PER_PAGE; j++, pos += entry_size) {
 			if (pos == dir->i_size) {
 				testfs_put_page(page);
-				return -ENOENT;
+				return ERR_PTR(-ENOENT);
 			}
 			if (tde[j].name_len != name_len)
 				continue;
 
 			if (!strncmp(dentry->d_name.name, tde[j].name,name_len)) {
-				*ino = le32_to_cpu(tde[j].inode);
-				testfs_put_page(page);
-				return 0;
+				*pg = page;
+				return &tde[j];
 			}
 		}
 		testfs_put_page(page);
 	}
 
-	return -ENOENT;
+	return ERR_PTR(-ENOENT);
+}
+
+static int testfs_name_to_ino(struct inode *dir, struct dentry *dentry, ino_t *ino)
+{
+	struct testfs_dir_entry *tde;
+	struct page *page;
+
+	tde = testfs_lookup_by_name(dir, dentry, &page);
+	if (IS_ERR(tde))
+		return PTR_ERR(tde);
+
+	*ino = le32_to_cpu(tde->inode);
+	testfs_put_page(page);
+
+	return 0;
 }
 
 static struct dentry *testfs_lookup(struct inode *dir, struct dentry *dentry,
