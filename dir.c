@@ -395,8 +395,12 @@ static int testfs_readdir(struct file *file, struct dir_context *ctx)
 			}
 
 			tde = (struct testfs_dir_entry *)s;
+			/*
+			 * if find a unused entry, skip it, remeber to update
+			 * ctx->pos, which means we have read it.
+			 */
 			if (tde->name_len == 0)
-				continue;
+				goto next;
 			/* copy valid dentry to @ctx */
 			if (!dir_emit(ctx, tde->name, tde->name_len,
 					le32_to_cpu(tde->inode),
@@ -404,7 +408,7 @@ static int testfs_readdir(struct file *file, struct dir_context *ctx)
 				testfs_put_page(page);
 				return 0;
 			}
-
+next:
 			ctx->pos += TEST_FS_DENTRY_SIZE;
 		}
 		testfs_put_page(page);
