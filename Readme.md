@@ -2,13 +2,27 @@
 	A simple block device based filesystem, most of code was copied from ext2.
 	It just a demo to show how to learn to write a file system step by step.
 
-## support functions
+	Disk layout
+
+	|--------|--------|--------|--------|--------------------|
+	    1        2        3        4             5
+	
+	index | count | usage
+	------------------------------------
+	1     | 1     | super block
+	2     | 1     | inode bitmap
+	3     | 1     | data block bitmap
+	4     | N     | inode table
+	5     | M     | data region
+	...
+
+## Supported functions
 	create file
 	remove file
 	read file
 	write file
 	mkdir
-## need support functions
+## Need supported functions
 	rmdir
 	symlink
 	attribute
