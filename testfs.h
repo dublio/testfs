@@ -155,6 +155,7 @@ struct inode *testfs_new_inode(struct inode *dir, umode_t mode,
 int testfs_inode_cache_init(void);
 void testfs_inode_cache_deinit(void);
 void testfs_free_inode(struct inode *inode);
+void testfs_evict_inode(struct inode * inode);
 struct inode *testfs_iget(struct super_block *sb, int ino);
 int testfs_write_inode(struct inode *inode, struct writeback_control *wbc);
 int testfs_fsync(struct file *file, loff_t start, loff_t end, int datasync);
