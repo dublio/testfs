@@ -15,3 +15,20 @@
 	...
 ## Environment
 	linux kernel v4.10 and newer
+
+## Usage
+	Suppose /test is the target mount point
+
+	make
+
+	dd if=/dev/zero of=disk.img bs=1M count=64 status=none
+	./mktestfs disk.img
+
+	umount /test
+	rmmod testfs
+	insmod testfs.ko
+
+	mount -t testfs -o loop disk.img /test
+
+	echo "hello testfs" > /test/hello.txt
+	cat /test/hello.txt
