@@ -22,8 +22,8 @@
 	read file
 	write file
 	mkdir
-## Need supported functions
 	rmdir
+## Need supported functions
 	symlink
 	attribute
 	...
