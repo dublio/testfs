@@ -378,6 +378,85 @@ dec_dir_link:
 	return ret;
 }
 
+
+/**
+ * testfs_dir_empty - check directory is empty
+ *
+ * @inode: the directory's inode
+ *
+ * Returns: true on empty, false on not-empty
+ *
+ */
+static inline bool testfs_dir_empty(struct inode *inode)
+{
+	unsigned long i, total_pages = dir_pages(inode);
+	loff_t pos = 0, total_size = inode->i_size;
+	struct testfs_dir_entry *tde;
+	struct page *page;
+	char *s, *e;
+
+	for (; i < total_pages; i++) {
+		page = testfs_get_page(inode, i);
+		if (IS_ERR(page)) {
+			log_err("bad page in inode %lu, skip\n", inode->i_ino);
+			return false;
+		}
+
+		s = (char *)page_address(page);
+		e = s + PAGE_SIZE;
+
+		for (;s < e; s += TEST_FS_DENTRY_SIZE) {
+			/* check current pos and total file size */
+			if (pos == total_size) {
+				testfs_put_page(page);
+				return true;
+			}
+
+			tde = (struct testfs_dir_entry *)s;
+			switch (tde->name_len) {
+			case 0:
+				break;
+			case 1: /* check . */
+				if (tde->name[0] == '.')
+					break;
+				goto not_empty;
+			case 2: /* check .. */
+				if ((tde->name[0] == '.') && (tde->name[1] == '.'))
+					break;
+				goto not_empty;
+			default:
+				goto not_empty;
+			}
+
+			pos += TEST_FS_DENTRY_SIZE;
+		}
+		testfs_put_page(page);
+	}
+
+	return true;
+
+not_empty:
+	testfs_put_page(page);
+	return false;
+}
+
+static int testfs_rmdir(struct inode *dir, struct dentry *dentry)
+{
+	struct inode *inode = d_inode(dentry);
+	int ret = -ENOTEMPTY;
+
+	if (testfs_dir_empty(inode)) {
+		ret = testfs_unlink(dir, dentry);
+		if (!ret) {
+			inode->i_size = 0;
+			inode_dec_link_count(inode);
+			inode_dec_link_count(dir);
+		}
+	}
+
+	return ret;
+}
+
 static int testfs_readdir(struct file *file, struct dir_context *ctx)
 {
 	struct inode *inode = file_inode(file);
@@ -463,5 +542,6 @@ const struct inode_operations testfs_dir_iops = {
 	.create		= testfs_create,
 	.unlink		= testfs_unlink,
 	.mkdir		= testfs_mkdir,
+	.rmdir		= testfs_rmdir,
 	.getattr        = testfs_getattr,
 };
